@@ -1,6 +1,6 @@
+# src/recommender_cf.py
+
 from surprise import Dataset, Reader, SVD
-from surprise.model_selection import train_test_split
-from surprise import accuracy
 
 class CollaborativeFilteringRecommender:
     def __init__(self, df):
@@ -10,10 +10,18 @@ class CollaborativeFilteringRecommender:
         self.model = SVD()
         self.model.fit(self.trainset)
 
-    def recommend_for_user(self, user_id, product_list, top_n=5):
-        preds = []
-        for product_id in product_list:
-            pred = self.model.predict(user_id, product_id)
-            preds.append((product_id, pred.est))
-        preds.sort(key=lambda x: x[1], reverse=True)
-        return preds[:top_n]
+    def get_recommendations(self, user_id_raw, top_n=5):
+        user_id_inner = self.trainset.to_inner_uid(user_id_raw)
+        items_all = set(self.trainset.all_items())
+        items_rated = set([j for (j, _) in self.trainset.ur[user_id_inner]])
+        items_unrated = items_all - items_rated
+
+        predictions = []
+        for item_inner in items_unrated:
+            item_raw = self.trainset.to_raw_iid(item_inner)
+            pred = self.model.predict(user_id_raw, item_raw)
+            predictions.append((item_raw, pred.est))
+
+        predictions.sort(key=lambda x: x[1], reverse=True)
+        return predictions[:top_n]
+

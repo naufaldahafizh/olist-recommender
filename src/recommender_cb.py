@@ -1,19 +1,31 @@
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import linear_kernel
+from sklearn.metrics.pairwise import cosine_similarity
 
 class ContentBasedRecommender:
-    def __init__(self, product_df):
-        self.products = product_df.copy()
-        self.products['product_category_name'] = self.products['product_category_name'].fillna('unknown')
+    def __init__(self):
         self.tfidf = TfidfVectorizer()
-        self.tfidf_matrix = self.tfidf.fit_transform(self.products['product_category_name'])
-        self.similarity = linear_kernel(self.tfidf_matrix, self.tfidf_matrix)
-        self.indices = pd.Series(self.products.index, index=self.products['product_id']).drop_duplicates()
+        self.product_ids = []
+        self.tfidf_matrix = None
 
-    def recommend(self, product_id, top_n=5):
-        idx = self.indices[product_id]
-        sim_scores = list(enumerate(self.similarity[idx]))
-        sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)[1:top_n+1]
-        product_indices = [i[0] for i in sim_scores]
-        return self.products.iloc[product_indices][['product_id', 'product_category_name']]
+    def fit(self, df: pd.DataFrame, text_col: str, id_col: str):
+        self.product_ids = df[id_col].tolist()
+        tfidf_matrix = self.tfidf.fit_transform(df[text_col])
+        self.tfidf_matrix = tfidf_matrix
+        self.df = df
+        self.id_col = id_col
+        return self
+
+    def recommend(self, product_id: str, n=5):
+        if product_id not in self.product_ids:
+            return pd.DataFrame()
+
+        idx = self.product_ids.index(product_id)
+        cosine_sim = cosine_similarity(self.tfidf_matrix[idx], self.tfidf_matrix).flatten()
+        sim_scores = list(enumerate(cosine_sim))
+        sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
+
+        top_indices = [i for i, _ in sim_scores[1:n+1]]
+        results = self.df.iloc[top_indices][[self.id_col]].copy()
+        results['similarity_score'] = [cosine_sim[i] for i in top_indices]
+        return results
