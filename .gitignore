@@ -1,2 +1,5 @@
 data/
 venv/
+
+# Semua file .pkl
+*.pkl
